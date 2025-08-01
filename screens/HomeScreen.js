@@ -44,7 +44,7 @@ const HomeScreen = () => {
   const [activeFilter, setActiveFilter] = useState("All");
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
-  const [fadeAnim] = useState(new Animated.Value(1));
+  const fadeAnims = React.useRef({});
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -101,13 +101,17 @@ const HomeScreen = () => {
   };
 
   const toggleTodo = async (id, completed) => {
+    if (!fadeAnims.current[id]) {
+      fadeAnims.current[id] = new Animated.Value(1);
+    }
+
     Animated.sequence([
-      Animated.timing(fadeAnim, {
+      Animated.timing(fadeAnims.current[id], {
         toValue: 0.5,
         duration: 100,
         useNativeDriver: true,
       }),
-      Animated.timing(fadeAnim, {
+      Animated.timing(fadeAnims.current[id], {
         toValue: 1,
         duration: 100,
         useNativeDriver: true,
@@ -124,16 +128,37 @@ const HomeScreen = () => {
   };
 
   const deleteTodo = async (id) => {
+    if (!fadeAnims.current[id]) {
+      fadeAnims.current[id] = new Animated.Value(1);
+    }
+
     try {
-      Animated.timing(fadeAnim, {
+      // Start fade out animation
+      Animated.timing(fadeAnims.current[id], {
         toValue: 0,
         duration: 200,
         useNativeDriver: true,
       }).start(async () => {
-        await deleteDoc(doc(db, "todos", id));
+        // Delete from Firestore after animation
+        try {
+          await deleteDoc(doc(db, "todos", id));
+          // Clean up the animation value after successful deletion
+          delete fadeAnims.current[id];
+        } catch (error) {
+          console.error("Error deleting todo:", error);
+          Alert.alert("Error", "Failed to delete the task. Please try again.");
+          // Reset opacity if delete fails
+          if (fadeAnims.current[id]) {
+            Animated.timing(fadeAnims.current[id], {
+              toValue: 1,
+              duration: 200,
+              useNativeDriver: true,
+            }).start();
+          }
+        }
       });
     } catch (error) {
-      console.error("Error deleting todo:", error);
+      console.error("Error in animation:", error);
     }
   };
 
@@ -201,59 +226,68 @@ const HomeScreen = () => {
     setIsEditMode(false);
   };
 
-  const renderTodoItem = ({ item }) => (
-    <Animated.View style={[styles.todoItem, { opacity: fadeAnim }]}>
-      <View style={styles.todoContent}>
-        <TouchableOpacity
-          style={styles.todoCheckbox}
-          onPress={() => toggleTodo(item.id, item.completed)}
-        >
-          {item.completed && (
-            <MaterialCommunityIcons name="check" size={20} color="#4285F4" />
-          )}
-        </TouchableOpacity>
-        <View style={styles.todoTextContainer}>
-          <View style={styles.todoTextSection}>
-            <Text
-              style={[styles.todoText, item.completed && styles.completedTodoText]}
-            >
-              {item.title}
-            </Text>
-            {item.description ? (
+  const renderTodoItem = ({ item }) => {
+    // Initialize fade animation for this item if it doesn't exist
+    if (!fadeAnims.current[item.id]) {
+      fadeAnims.current[item.id] = new Animated.Value(1);
+    }
+
+    return (
+      <Animated.View style={[styles.todoItem, { opacity: fadeAnims.current[item.id] }]}>
+        <View style={styles.todoContent}>
+          <TouchableOpacity
+            style={styles.todoCheckbox}
+            onPress={() => toggleTodo(item.id, item.completed)}
+          >
+            {item.completed && (
+              <MaterialCommunityIcons name="check" size={20} color="#4285F4" />
+            )}
+          </TouchableOpacity>
+          <View style={styles.todoMainContent}>
+            <View style={styles.todoTextContainer}>
               <Text
-                style={[styles.todoDescription, item.completed && styles.completedTodoText]}
-                numberOfLines={2}
+                style={[styles.todoText, item.completed && styles.completedTodoText]}
               >
-                {item.description}
+                {item.title}
               </Text>
-            ) : null}
+              {item.description ? (
+                <Text
+                  style={[styles.todoDescription, item.completed && styles.completedTodoText]}
+                  numberOfLines={2}
+                >
+                  {item.description}
+                </Text>
+              ) : null}
+            </View>
+            <View style={styles.todoActions}>
+              <DatePickerButton
+                onPress={() => showDatePicker(item)}
+                dueDate={item.dueDate ? new Date(item.dueDate.toDate()) : null}
+              />
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => openEditModal(item)}
+              >
+                <MaterialCommunityIcons name="pencil-outline" size={20} color="#4285F4" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => deleteTodo(item.id)}
+              >
+                <MaterialCommunityIcons name="delete-outline" size={20} color="#EA4335" />
+              </TouchableOpacity>
+            </View>
           </View>
-          <DatePickerButton
-            onPress={() => showDatePicker(item)}
-            dueDate={item.dueDate ? new Date(item.dueDate.toDate()) : null}
-          />
         </View>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => openEditModal(item)}
-        >
-          <MaterialCommunityIcons name="pencil-outline" size={20} color="#4285F4" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => deleteTodo(item.id)}
-        >
-          <MaterialCommunityIcons name="delete-outline" size={20} color="#ff4444" />
-        </TouchableOpacity>
-      </View>
-      <DateTimePickerModal
-        isVisible={isDatePickerVisible && selectedTodo?.id === item.id}
-        date={item.dueDate ? new Date(item.dueDate.toDate()) : new Date()}
-        onConfirm={handleConfirmDate}
-        onCancel={handleCancelDate}
-      />
-    </Animated.View>
-  );
+        <DateTimePickerModal
+          isVisible={isDatePickerVisible && selectedTodo?.id === item.id}
+          date={item.dueDate ? new Date(item.dueDate.toDate()) : new Date()}
+          onConfirm={handleConfirmDate}
+          onCancel={handleCancelDate}
+        />
+      </Animated.View>
+    );
+  };
 
   return (
     <View style={[styles.container, SafeViewAndroid.AndroidSafeArea]}>
@@ -334,91 +368,154 @@ const HomeScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FA",
     padding: 20,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
+    backgroundColor: "#1a73e8",
+    marginHorizontal: -20,
+    marginTop: -40,
+    padding: 24,
+    paddingTop: 64,
+    paddingBottom: 24,
+    elevation: 8,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
+    color: "#ffffff",
+    letterSpacing: 0.5,
   },
   todoList: {
     flex: 1,
   },
   todoItem: {
     backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 8,
-    elevation: 2,
-    shadowColor: "#000",
+    borderRadius: 24,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: "#1a73e8",
     shadowOffset: {
       width: 0,
-      height: 1,
+      height: 4,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.41,
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(26,115,232,0.08)",
+    marginHorizontal: 2,
+    transform: [{ scale: 1 }],
+    overflow: 'hidden',
+    backdropFilter: 'blur(20px)',
   },
   todoContent: {
     flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
+    padding: 20,
+    backgroundColor: "rgba(255,255,255,0.98)",
+  },
+  todoMainContent: {
+    flex: 1,
+    marginLeft: 18,
   },
   todoTextContainer: {
     flex: 1,
+    marginBottom: 14,
+  },
+  todoActions: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginRight: 8,
-  },
-  todoTextSection: {
-    flex: 1,
-    marginRight: 8,
+    justifyContent: "flex-start",
+    marginTop: 12,
+    gap: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(0,0,0,0.06)",
   },
   todoCheckbox: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: "#4285F4",
-    borderRadius: 12,
-    marginRight: 12,
+    width: 28,
+    height: 28,
+    borderWidth: 2.5,
+    borderColor: "#1a73e8",
+    borderRadius: 14,
     justifyContent: "center",
     alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#1a73e8",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+    marginRight: 2,
   },
   todoText: {
-    fontSize: 16,
-    color: "#333",
+    fontSize: 18,
+    color: "#1f1f1f",
     flex: 1,
     marginRight: 8,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+    lineHeight: 24,
   },
   todoDescription: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 4,
+    fontSize: 15,
+    color: "#5f6368",
+    marginTop: 8,
+    lineHeight: 22,
+    letterSpacing: 0.2,
+    opacity: 0.9,
+    fontWeight: "400",
   },
   completedTodoText: {
     textDecorationLine: "line-through",
-    color: "#999",
+    color: "#9aa0a6",
+    opacity: 0.8,
   },
   editButton: {
-    padding: 8,
-    marginRight: 4,
+    padding: 10,
+    marginRight: 10,
+    backgroundColor: "rgba(66, 133, 244, 0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(66, 133, 244, 0.12)",
+    transform: [{ scale: 1 }],
   },
   deleteButton: {
-    padding: 8,
+    padding: 10,
+    backgroundColor: "rgba(234, 67, 53, 0.08)",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(234, 67, 53, 0.12)",
+    transform: [{ scale: 1 }],
   },
   signOutButton: {
-    backgroundColor: "#666",
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    borderRadius: 5,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.3)",
   },
   signOutButtonText: {
-    color: "#fff",
+    color: "#202124",
+    fontWeight: "500",
   },
   modalContainer: {
     flex: 1,
@@ -427,45 +524,78 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#fff",
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    padding: 32,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    elevation: 24,
+    shadowColor: "#1a73e8",
+    shadowOffset: {
+      width: 0,
+      height: -6,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(26,115,232,0.1)",
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 16,
+    fontSize: 32,
+    fontWeight: "800",
+    marginBottom: 28,
+    color: "#1a73e8",
+    letterSpacing: 0.5,
+    textShadowColor: 'rgba(26,115,232,0.1)',
+    textShadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    textShadowRadius: 4,
   },
   modalInput: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "#e8f0fe",
+    borderRadius: 18,
+    padding: 20,
+    fontSize: 17,
+    marginBottom: 18,
+    backgroundColor: "#F8F9FA",
+    shadowColor: "#1a73e8",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    elevation: 3,
+    color: "#1f1f1f",
+    fontWeight: "500",
   },
   modalButtons: {
     flexDirection: "row",
     justifyContent: "flex-end",
+    marginTop: 8,
   },
   modalButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginLeft: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    marginLeft: 12,
   },
   cancelButton: {
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#F8F9FA",
+    borderWidth: 1,
+    borderColor: "#dadce0",
   },
   cancelButtonText: {
-    color: "#666",
+    color: "#5f6368",
+    fontWeight: "600",
   },
   addButton: {
-    backgroundColor: "#4285F4",
+    backgroundColor: "#1a73e8",
   },
   addButtonText: {
     color: "#fff",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
 });
 
