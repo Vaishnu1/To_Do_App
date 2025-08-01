@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import SafeViewAndroid from "../components/SafeViewAndroid";
+import DatePickerButton from "../components/DatePickerButton";
+import DateTimePickerModal from "../components/DateTimePickerModal";
 
 import {
   View,
@@ -25,6 +27,8 @@ import {
 const HomeScreen = () => {
   const [todoInput, setTodoInput] = useState("");
   const [todos, setTodos] = useState([]);
+  const [selectedTodo, setSelectedTodo] = useState(null);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -54,6 +58,7 @@ const HomeScreen = () => {
         completed: false,
         userId: auth.currentUser.uid,
         createdAt: new Date(),
+        dueDate: null,
       });
       setTodoInput("");
     } catch (error) {
@@ -87,6 +92,28 @@ const HomeScreen = () => {
     }
   };
 
+  const showDatePicker = (todo) => {
+    setSelectedTodo(todo);
+    setDatePickerVisible(true);
+  };
+
+  const handleConfirmDate = async (date) => {
+    try {
+      await updateDoc(doc(db, "todos", selectedTodo.id), {
+        dueDate: date,
+      });
+      setDatePickerVisible(false);
+      setSelectedTodo(null);
+    } catch (error) {
+      console.error("Error updating due date:", error);
+    }
+  };
+
+  const handleCancelDate = () => {
+    setDatePickerVisible(false);
+    setSelectedTodo(null);
+  };
+
   const renderTodoItem = ({ item }) => (
     <View style={styles.todoItem}>
       <TouchableOpacity
@@ -95,17 +122,29 @@ const HomeScreen = () => {
       >
         {item.completed && <Text style={styles.checkmark}>✓</Text>}
       </TouchableOpacity>
-      <Text
-        style={[styles.todoText, item.completed && styles.completedTodoText]}
-      >
-        {item.title}
-      </Text>
+      <View style={styles.todoContent}>
+        <Text
+          style={[styles.todoText, item.completed && styles.completedTodoText]}
+        >
+          {item.title}
+        </Text>
+        <DatePickerButton
+          onPress={() => showDatePicker(item)}
+          dueDate={item.dueDate ? new Date(item.dueDate.toDate()) : null}
+        />
+      </View>
       <TouchableOpacity
         style={styles.deleteButton}
         onPress={() => deleteTodo(item.id)}
       >
         <Text style={styles.deleteButtonText}>Delete</Text>
       </TouchableOpacity>
+      <DateTimePickerModal
+        isVisible={isDatePickerVisible && selectedTodo?.id === item.id}
+        date={item.dueDate ? new Date(item.dueDate.toDate()) : new Date()}
+        onConfirm={handleConfirmDate}
+        onCancel={handleCancelDate}
+      />
     </View>
   );
 
@@ -149,6 +188,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
     padding: 20,
+  },
+  todoContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 10,
   },
   header: {
     flexDirection: "row",
