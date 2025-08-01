@@ -36,7 +36,6 @@ import {
 
 const HomeScreen = () => {
   const [todoInput, setTodoInput] = useState("");
-  const [todoDescription, setTodoDescription] = useState("");
   const [todos, setTodos] = useState([]);
   const [selectedTodo, setSelectedTodo] = useState(null);
   const [isDatePickerVisible, setDatePickerVisible] = useState(false);
@@ -50,8 +49,8 @@ const HomeScreen = () => {
 
     const q = query(
       collection(db, "todos"),
-      where("userId", "==", auth.currentUser.uid)
-      // orderBy("createdAt", "desc") // Temporarily removed until index is built
+      where("userId", "==", auth.currentUser.uid),
+      orderBy("createdAt", "desc")
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -59,8 +58,6 @@ const HomeScreen = () => {
       snapshot.forEach((doc) => {
         todoList.push({ id: doc.id, ...doc.data() });
       });
-      // Sort todos by creation date until the Firestore index is ready
-      todoList.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
       setTodos(todoList);
     });
 
@@ -85,14 +82,12 @@ const HomeScreen = () => {
     try {
       await addDoc(collection(db, "todos"), {
         title: todoInput,
-        description: todoDescription.trim(),
         completed: false,
         userId: auth.currentUser.uid,
         createdAt: new Date(),
         dueDate: null,
       });
       setTodoInput("");
-      setTodoDescription("");
       setAddModalVisible(false);
     } catch (error) {
       console.error("Error adding todo:", error);
@@ -178,21 +173,11 @@ const HomeScreen = () => {
           )}
         </TouchableOpacity>
         <View style={styles.todoTextContainer}>
-          <View style={styles.todoTextSection}>
-            <Text
-              style={[styles.todoText, item.completed && styles.completedTodoText]}
-            >
-              {item.title}
-            </Text>
-            {item.description ? (
-              <Text
-                style={[styles.todoDescription, item.completed && styles.completedTodoText]}
-                numberOfLines={2}
-              >
-                {item.description}
-              </Text>
-            ) : null}
-          </View>
+          <Text
+            style={[styles.todoText, item.completed && styles.completedTodoText]}
+          >
+            {item.title}
+          </Text>
           <DatePickerButton
             onPress={() => showDatePicker(item)}
             dueDate={item.dueDate ? new Date(item.dueDate.toDate()) : null}
@@ -258,16 +243,8 @@ const HomeScreen = () => {
               style={styles.modalInput}
               value={todoInput}
               onChangeText={setTodoInput}
-              placeholder="Task title..."
+              placeholder="Enter task..."
               autoFocus
-            />
-            <TextInput
-              style={[styles.modalInput, styles.descriptionInput]}
-              value={todoDescription}
-              onChangeText={setTodoDescription}
-              placeholder="Description (optional)"
-              multiline
-              numberOfLines={3}
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -334,10 +311,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginRight: 8,
   },
-  todoTextSection: {
-    flex: 1,
-    marginRight: 8,
-  },
   todoCheckbox: {
     width: 24,
     height: 24,
@@ -353,11 +326,6 @@ const styles = StyleSheet.create({
     color: "#333",
     flex: 1,
     marginRight: 8,
-  },
-  todoDescription: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 4,
   },
   completedTodoText: {
     textDecorationLine: "line-through",
