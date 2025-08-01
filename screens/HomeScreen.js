@@ -45,6 +45,17 @@ const HomeScreen = () => {
   const [isAddModalVisible, setAddModalVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const fadeAnims = React.useRef({});
+  const translateY = React.useRef(new Animated.Value(0)).current;
+  
+  // Animation for the add modal
+  useEffect(() => {
+    Animated.spring(translateY, {
+      toValue: isAddModalVisible ? 0 : 1000,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11
+    }).start();
+  }, [isAddModalVisible]);
 
   useEffect(() => {
     if (!auth.currentUser) return;

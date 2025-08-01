@@ -8,12 +8,15 @@ import {
   SafeAreaView,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from "react-native";
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { auth } from "../firebaseConfig";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
 } from "firebase/auth";
+import { colors } from '../theme/colors';
 
 const AuthScreen = ({ navigation }) => {
   const [email, setEmail] = useState("");
