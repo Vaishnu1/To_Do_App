@@ -43,6 +43,7 @@ const HomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState("All");
   const [isAddModalVisible, setAddModalVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [fadeAnim] = useState(new Animated.Value(1));
 
   useEffect(() => {
@@ -166,6 +167,40 @@ const HomeScreen = () => {
     setSelectedTodo(null);
   };
 
+  const handleEditTodo = async () => {
+    if (todoInput.trim() === "") return;
+
+    try {
+      await updateDoc(doc(db, "todos", selectedTodo.id), {
+        title: todoInput,
+        description: todoDescription.trim(),
+      });
+      setTodoInput("");
+      setTodoDescription("");
+      setIsAddModalVisible(false);
+      setSelectedTodo(null);
+      setIsEditMode(false);
+    } catch (error) {
+      console.error("Error updating todo:", error);
+    }
+  };
+
+  const openEditModal = (todo) => {
+    setSelectedTodo(todo);
+    setTodoInput(todo.title);
+    setTodoDescription(todo.description || "");
+    setIsEditMode(true);
+    setAddModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setAddModalVisible(false);
+    setTodoInput("");
+    setTodoDescription("");
+    setSelectedTodo(null);
+    setIsEditMode(false);
+  };
+
   const renderTodoItem = ({ item }) => (
     <Animated.View style={[styles.todoItem, { opacity: fadeAnim }]}>
       <View style={styles.todoContent}>
@@ -198,6 +233,12 @@ const HomeScreen = () => {
             dueDate={item.dueDate ? new Date(item.dueDate.toDate()) : null}
           />
         </View>
+        <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => openEditModal(item)}
+        >
+          <MaterialCommunityIcons name="pencil-outline" size={20} color="#4285F4" />
+        </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
           onPress={() => deleteTodo(item.id)}
@@ -246,14 +287,14 @@ const HomeScreen = () => {
         visible={isAddModalVisible}
         animationType="slide"
         transparent={true}
-        onRequestClose={() => setAddModalVisible(false)}
+        onRequestClose={handleCloseModal}
       >
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={styles.modalContainer}
         >
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Add New Task</Text>
+            <Text style={styles.modalTitle}>{isEditMode ? 'Edit Task' : 'Add New Task'}</Text>
             <TextInput
               style={styles.modalInput}
               value={todoInput}
@@ -272,15 +313,15 @@ const HomeScreen = () => {
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setAddModalVisible(false)}
+                onPress={handleCloseModal}
               >
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.addButton]}
-                onPress={addTodo}
+                onPress={isEditMode ? handleEditTodo : addTodo}
               >
-                <Text style={styles.addButtonText}>Add Task</Text>
+                <Text style={styles.addButtonText}>{isEditMode ? 'Save' : 'Add Task'}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -362,6 +403,10 @@ const styles = StyleSheet.create({
   completedTodoText: {
     textDecorationLine: "line-through",
     color: "#999",
+  },
+  editButton: {
+    padding: 8,
+    marginRight: 4,
   },
   deleteButton: {
     padding: 8,
